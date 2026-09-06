@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meeting Notes to PDF</title>
+<style>
+  :root {
+    --primary: #0066cc;
+    --primary-dark: #004d99;
+    --primary-light: #e6f0fa;
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --muted: #666666;
+    --border: #e0e4ea;
+    --success: #28a745;
+    --error: #dc3545;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .navbar {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .brand .logo {
+    width: 34px;
+    height: 34px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .privacy-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .privacy-badge .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+
+  .container {
+    flex: 1;
+    width: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 28px 24px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .card + .card { margin-top: 20px; }
+
+  .card h2 {
+    font-size: 16px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .step-num {
+    background: var(--primary-light);
+    color: var(--primary);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 220px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 14px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    resize: vertical;
+    color: var(--text);
+    background: #fff;
+    transition: border-color 0.2s;
+  }
+
+  textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-top: 14px;
+  }
+
+  select, .file-label {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  select:focus { border-color: var(--primary); outline: none; }
+
+  .file-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  .file-label input[type="file"] { display: none; }
+
+  .btn {
+    padding: 11px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.05s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+  }
+
+  .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn:active:not(:disabled) { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+  }
+
+  .btn-ghost:hover { background: var(--primary-light); }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hidden { display: none !important; }
+
+  #result {
+    margin-top: 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  #result.success { border-color: var(--success); }
+  #result.error { border-color: var(--error); background: #fdf3f3; }
+
+  #result h3 {
+    font-size: 15px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #result.success h3 { color: var(--success); }
+  #result.error h3 { color: var(--error); }
+
+  #result p { font-size: 14px; color: var(--muted); }
+
+  #result.error pre {
+    margin-top: 10px;
+    padding: 10px;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--error);
+  }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 18px;
+  }
+</style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="brand">
+      <span class="logo">M</span>
+      <span>Meeting Notes to PDF</span>
+    </div>
+    <div class="privacy-badge">
+      <span class="dot"></span>
+      <span>100% local · Ollama</span>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2><span class="step-num">1</span> Enter your meeting notes</h2>
+      <textarea id="notes" placeholder="Paste your raw meeting notes here...&#10;&#10;Example:&#10;Meeting 25 Aug 2026 - discussed onboarding flow. Adoption up 25%. Server costs over budget, moving to scalable plan. Alice to draft pricing page by Friday."></textarea>
+
+      <div class="toolbar">
+        <select id="model" title="AI model to use"></select>
+
+        <label class="file-label">
+          <input type="file" id="fileInput" accept=".txt,text/plain">
+          Load from file
+        </label>
+
+        <button class="btn btn-primary" id="generateBtn">Generate PDF</button>
+
+        <div class="status hidden" id="status">
+          <span class="spinner"></span>
+          <span id="statusText">AI is organizing your notes...</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="result" class="hidden">
+      <h3 id="resultTitle"></h3>
+      <p id="resultText"></p>
+      <pre id="resultDetail" class="hidden"></pre>
+    </div>
+  </div>
+
+  <footer>Local AI helper · All processing happens on your machine</footer>
+
+<script>
+  const notesEl = document.getElementById('notes');
+  const modelEl = document.getElementById('model');
+  const fileInput = document.getElementById('fileInput');
+  const generateBtn = document.getElementById('generateBtn');
+  const statusEl = document.getElementById('status');
+  const statusText = document.getElementById('statusText');
+  const resultEl = document.getElementById('result');
+  const resultTitle = document.getElementById('resultTitle');
+  const resultText = document.getElementById('resultText');
+  const resultDetail = document.getElementById('resultDetail');
+
+  async function loadModels() {
+    try {
+      const res = await fetch('/api/models');
+      const data = await res.json();
+      modelEl.innerHTML = '';
+      for (const m of data.models) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        modelEl.appendChild(opt);
+      }
+    } catch (e) {
+      console.error('Could not load models:', e);
+    }
+  }
+
+  // Load from file
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => notesEl.value = e.target.result;
+    reader.readAsText(file, 'utf-8');
+    fileInput.value = '';
+  });
+
+  // Generate PDF
+  generateBtn.addEventListener('click', async () => {
+    const notes = notesEl.value.trim();
+    const model = modelEl.value;
+
+    if (!notes) {
+      return showResult('error', 'No notes', 'Please paste some meeting notes first.');
+    }
+    if (!model) {
+      return showResult('error', 'No model', 'No Ollama model is available. Run: ollama pull llama3.1');
+    }
+
+    setBusy(true);
+    hideResult();
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes, model })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error (${res.status})`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'meeting_notes.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showResult('success', 'PDF generated', 'File downloaded as meeting_notes.pdf');
+    } catch (e) {
+      showResult('error', 'Generation failed', e.message || String(e), e.stack || e.error || '');
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  function setBusy(busy) {
+    generateBtn.disabled = busy;
+    statusEl.classList.toggle('hidden', !busy);
+    if (busy) {
+      const statuses = [
+        'Contacting Ollama...',
+        'AI is organizing your notes...',
+        'Structuring sections...',
+        'Generating PDF...'
+      ];
+      let i = 0;
+      statusText.textContent = statuses[0];
+      window.__statusTimer = setInterval(() => {
+        i = (i + 1) % statuses.length;
+        statusText.textContent = statuses[i];
+      }, 2500);
+    } else {
+      clearInterval(window.__statusTimer);
+    }
+  }
+
+  function showResult(type, title, text, detail) {
+    resultEl.className = type;
+    resultEl.classList.remove('hidden');
+    resultTitle.textContent = title;
+    resultText.textContent = text;
+    resultDetail.classList.toggle('hidden', !detail);
+    if (detail) resultDetail.textContent = detail;
+  }
+
+  function hideResult() { resultEl.classList.add('hidden'); }
+
+  loadModels();
+</script>
+</body>
+</html>

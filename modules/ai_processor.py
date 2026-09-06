@@ -1,5 +1,9 @@
 import json
+import logging
+import re
 import ollama
+
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = """You are a meeting notes organizer. The user will give you raw meeting notes.
@@ -54,12 +58,58 @@ def process_notes(raw_notes: str, model: str = "llama3.1") -> dict:
     )
 
     content = response["message"]["content"].strip()
+    logger.warning("Raw model response >>> %r", content)
 
-    if content.startswith("```"):
-        lines = content.split("\n")
-        lines = lines[1:]  # drop opening ```json
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        content = "\n".join(lines)
+    return parse_json_response(content)
 
-    return json.loads(content)
+
+def parse_json_response(content: str) -> dict:
+    """Parse the model's text response into a dict, tolerating fenced code
+    blocks, leading/trailing noise, and extra prose around the JSON object."""
+    cleaned = content.strip()
+
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        cleaned = cleaned[first_brace : last_brace + 1]
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        logger.warning("Strict JSON parse failed. Attempting repair: %r", cleaned)
+        repaired = repair_json(cleaned)
+        return json.loads(repaired)
+
+
+def repair_json(text: str) -> str:
+    """Best-effort repairs for common model JSON mangling: trailing commas,
+    single quotes, unquoted keys, and stray backslashes."""
+    result = []
+    i = 0
+    n = len(text)
+    in_string = False
+    while i < n:
+        ch = text[i]
+        if ch == '"' and not in_string:
+            in_string = True
+            result.append(ch)
+        elif ch == '"' and in_string:
+            in_string = False
+            result.append(ch)
+        elif ch == "'" and not in_string:
+            result.append('"')
+        elif in_string and ch == "\\" and i + 1 < n and text[i + 1] == "'":
+            result.append("'")
+            i += 1
+        else:
+            result.append(ch)
+        i += 1
+
+    rebuilt = "".join(result)
+    rebuilt = re.sub(r",(\s*[}\]])", r"\1", rebuilt)
+    rebuilt = re.sub(r"([{,])\s*([A-Za-z_][A-Za-z0-9_]*)\s*:", r'\1"\2":', rebuilt)
+    rebuilt = rebuilt.replace("\\'", "'")
+    return rebuilt

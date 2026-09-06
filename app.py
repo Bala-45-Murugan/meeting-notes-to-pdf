@@ -3,8 +3,27 @@ from tkinter import ttk, scrolledtext, filedialog, messagebox
 import threading
 import queue
 import os
+import sys
+import logging
+from datetime import datetime
 from modules.ai_processor import get_installed_models, process_notes, AVAILABLE_MODELS
 from modules.pdf_generator import generate_pdf
+
+
+def _setup_logging():
+    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(
+        log_dir, f"app_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    )
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.DEBUG,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        encoding="utf-8",
+    )
+    logging.getLogger().info("App started. Log file: %s", log_file)
+    return log_file
 
 
 class MeetingNotesApp:
@@ -114,6 +133,7 @@ class MeetingNotesApp:
             generate_pdf(data, output_path)
             self.result_queue.put(("done", output_path))
         except Exception as e:
+            logging.getLogger("app").exception("PDF generation failed")
             self.result_queue.put(("error", str(e)))
 
     def _poll_queue(self):
@@ -141,6 +161,7 @@ class MeetingNotesApp:
 
 
 if __name__ == "__main__":
+    log_file = _setup_logging()
     root = tk.Tk()
     app = MeetingNotesApp(root)
     root.mainloop()
